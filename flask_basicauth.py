@@ -44,9 +44,14 @@ class BasicAuth(object):
         app.config.setdefault('BASIC_AUTH_REALM', '')
 
         @app.before_request
-        def require_basic_auth():
+        def require_basic_auth(*args, **kwargs):
+            print('\n\n\n INIT BASIC AUTH \n\n\n')
             if not current_app.config['BASIC_AUTH_FORCE']:
                 return
+            if request.endpoint in app.view_functions:
+                view_func = app.view_functions[request.endpoint]
+                if hasattr(view_func, '_basic_auth_unprotected'):
+                    return
             if not self.authenticate():
                 return self.challenge()
 
@@ -55,7 +60,7 @@ class BasicAuth(object):
         Check if the given username and password are correct.
 
         By default compares the given username and password to
-        ``BASIC_AUTH_USERNAME`` and ``BASIC_AUTH_PASSWORD``
+        ``HTTP_BASIC_AUTH_USERNAME`` and ``HTTP_BASIC_AUTH_PASSWORD``
         configuration variables.
 
         :param username: a username provided by the client
@@ -108,4 +113,19 @@ class BasicAuth(object):
                 return view_func(*args, **kwargs)
             else:
                 return self.challenge()
+        return wrapper
+
+    def unprotected(self, *args, **kwargs):
+        """
+        A decorator that can be used to omit specific views from requiring
+        HTTP basic access authentication when an application is initialized
+        with basic auth.
+        """
+        def wrapper(view_func):
+            view_func._basic_auth_unprotected = True
+
+            @wraps(view_func)
+            def wrapped(*args, **kwargs):
+                return view_func(*args, **kwargs)
+            return wrapped
         return wrapper
